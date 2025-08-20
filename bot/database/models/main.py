@@ -190,6 +190,20 @@ class UnfinishedOperations(Database.BASE):
         self.message_id = message_id
 
 
+class PromoCode(Database.BASE):
+    __tablename__ = 'promo_codes'
+    code = Column(String(50), primary_key=True, unique=True)
+    discount = Column(Integer, nullable=False)
+    expires_at = Column(VARCHAR, nullable=True)
+    active = Column(Boolean, default=True)
+
+    def __init__(self, code: str, discount: int, expires_at: str | None = None, active: bool = True):
+        self.code = code
+        self.discount = discount
+        self.expires_at = expires_at
+        self.active = active
+
+
 def register_models():
     Database.BASE.metadata.create_all(Database().engine)
     Role.insert_roles()

@@ -101,7 +101,7 @@ def user_items_list(list_items: list, data: str, back_data: str, pre_back: str, 
 def item_info(item_name: str, category_name: str, lang: str) -> InlineKeyboardMarkup:
     """Return inline keyboard for a single item without basket option."""
     inline_keyboard = [
-        [InlineKeyboardButton('💰 Buy', callback_data=f'buy_{item_name}')],
+        [InlineKeyboardButton('💰 Buy', callback_data=f'confirm_{item_name}')],
         [InlineKeyboardButton('🔙 Go back', callback_data=f'category_{category_name}')]
     ]
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
@@ -136,6 +136,14 @@ def console() -> InlineKeyboardMarkup:
          ],
         [InlineKeyboardButton('🔙 Back to menu', callback_data='back_to_menu')
          ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
+def confirm_purchase_menu(item_name: str, lang: str) -> InlineKeyboardMarkup:
+    inline_keyboard = [
+        [InlineKeyboardButton(t(lang, 'purchase_button'), callback_data=f'buy_{item_name}')],
+        [InlineKeyboardButton(t(lang, 'apply_promo'), callback_data=f'promo_{item_name}')],
+        [InlineKeyboardButton('🔙 Back to menu', callback_data='back_to_menu')]
     ]
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
@@ -176,6 +184,8 @@ def shop_management() -> InlineKeyboardMarkup:
          ],
         [InlineKeyboardButton('🗂️ Kategorijų sukurimas', callback_data='categories_management')
          ],
+        [InlineKeyboardButton('🏷 Promo codes', callback_data='promo_management')
+         ],
         [InlineKeyboardButton('📝 Logai', callback_data='show_logs')
          ],
         [InlineKeyboardButton('📊 Statistikos', callback_data='statistics')
@@ -214,6 +224,15 @@ def categories_management() -> InlineKeyboardMarkup:
         [InlineKeyboardButton('✏️ Atnaujinti kategoriją', callback_data='update_category')],
         [InlineKeyboardButton('🗑️ Pašalinti kategoriją', callback_data='delete_category')],
         [InlineKeyboardButton('🔙 Grįžti atgal', callback_data='shop_management')]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
+
+def promo_codes_management() -> InlineKeyboardMarkup:
+    inline_keyboard = [
+        [InlineKeyboardButton('➕ Create promo code', callback_data='create_promo')],
+        [InlineKeyboardButton('🗑️ Delete promo code', callback_data='delete_promo')],
+        [InlineKeyboardButton('🔙 Go back', callback_data='shop_management')],
     ]
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 

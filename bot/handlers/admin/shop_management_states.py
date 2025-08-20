@@ -38,6 +38,9 @@ from bot.database.methods import (
     select_users_balance,
     update_category,
     update_item,
+    create_promocode,
+    delete_promocode,
+    get_promocode,
 )
 from bot.utils import generate_internal_name, display_name
 
@@ -46,7 +49,7 @@ from bot.utils.files import get_next_file_path
 from bot.database.models import Permission
 from bot.handlers.other import get_bot_user_ids
 from bot.keyboards import shop_management, goods_management, categories_management, back, item_management, \
-    question_buttons
+    question_buttons, promo_codes_management
 from bot.logger_mesh import logger
 from bot.misc import TgConfig
 
@@ -92,6 +95,111 @@ async def goods_management_callback_handler(call: CallbackQuery):
                                     reply_markup=goods_management())
         return
     await call.answer('Insufficient rights')
+
+
+async def promo_management_callback_handler(call: CallbackQuery):
+    bot, user_id = await get_bot_user_ids(call)
+    TgConfig.STATE[user_id] = None
+    role = check_role(user_id)
+    if role >= Permission.SHOP_MANAGE:
+        await bot.edit_message_text('🏷 Promo codes menu',
+                                    chat_id=call.message.chat.id,
+                                    message_id=call.message.message_id,
+                                    reply_markup=promo_codes_management())
+        return
+    await call.answer('Insufficient rights')
+
+
+async def create_promo_callback_handler(call: CallbackQuery):
+    bot, user_id = await get_bot_user_ids(call)
+    TgConfig.STATE[user_id] = 'promo_create_code'
+    TgConfig.STATE[f'{user_id}_message_id'] = call.message.message_id
+    await bot.edit_message_text('Enter promo code:',
+                                chat_id=call.message.chat.id,
+                                message_id=call.message.message_id,
+                                reply_markup=back('promo_management'))
+
+
+async def promo_code_receive_code(message: Message):
+    bot, user_id = await get_bot_user_ids(message)
+    if TgConfig.STATE.get(user_id) != 'promo_create_code':
+        return
+    code = message.text.strip()
+    TgConfig.STATE[f'{user_id}_promo_code'] = code
+    message_id = TgConfig.STATE.get(f'{user_id}_message_id')
+    TgConfig.STATE[user_id] = 'promo_create_discount'
+    await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+    await bot.edit_message_text('Enter discount percent:',
+                                chat_id=message.chat.id,
+                                message_id=message_id,
+                                reply_markup=back('promo_management'))
+
+
+async def promo_code_receive_discount(message: Message):
+    bot, user_id = await get_bot_user_ids(message)
+    if TgConfig.STATE.get(user_id) != 'promo_create_discount':
+        return
+    discount = int(message.text.strip())
+    TgConfig.STATE[f'{user_id}_promo_discount'] = discount
+    message_id = TgConfig.STATE.get(f'{user_id}_message_id')
+    TgConfig.STATE[user_id] = 'promo_create_expiry'
+    await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+    await bot.edit_message_text('Enter expiry date (YYYY-MM-DD) or 0 for none:',
+                                chat_id=message.chat.id,
+                                message_id=message_id,
+                                reply_markup=back('promo_management'))
+
+
+async def promo_code_receive_expiry(message: Message):
+    bot, user_id = await get_bot_user_ids(message)
+    if TgConfig.STATE.get(user_id) != 'promo_create_expiry':
+        return
+    expiry = message.text.strip()
+    code = TgConfig.STATE.get(f'{user_id}_promo_code')
+    discount = TgConfig.STATE.get(f'{user_id}_promo_discount')
+    message_id = TgConfig.STATE.get(f'{user_id}_message_id')
+    await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+    if expiry == '0':
+        expiry = None
+    create_promocode(code, discount, expiry)
+    TgConfig.STATE[user_id] = None
+    await bot.edit_message_text('✅ Promo code created',
+                                chat_id=message.chat.id,
+                                message_id=message_id,
+                                reply_markup=back('promo_management'))
+    admin_info = await bot.get_chat(user_id)
+    logger.info(f"User {user_id} ({admin_info.first_name}) created promo code {code}")
+
+
+async def delete_promo_callback_handler(call: CallbackQuery):
+    bot, user_id = await get_bot_user_ids(call)
+    TgConfig.STATE[user_id] = 'promo_delete'
+    TgConfig.STATE[f'{user_id}_message_id'] = call.message.message_id
+    await bot.edit_message_text('Enter promo code to delete:',
+                                chat_id=call.message.chat.id,
+                                message_id=call.message.message_id,
+                                reply_markup=back('promo_management'))
+
+
+async def promo_code_delete_process(message: Message):
+    bot, user_id = await get_bot_user_ids(message)
+    if TgConfig.STATE.get(user_id) != 'promo_delete':
+        return
+    code = message.text.strip()
+    message_id = TgConfig.STATE.get(f'{user_id}_message_id')
+    await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+    if get_promocode(code):
+        delete_promocode(code)
+        text = '✅ Promo code deleted'
+        admin_info = await bot.get_chat(user_id)
+        logger.info(f"User {user_id} ({admin_info.first_name}) deleted promo code {code}")
+    else:
+        text = '❌ Promo code not found'
+    TgConfig.STATE[user_id] = None
+    await bot.edit_message_text(text,
+                                chat_id=message.chat.id,
+                                message_id=message_id,
+                                reply_markup=back('promo_management'))
 
 
 async def assign_photos_callback_handler(call: CallbackQuery):
@@ -963,6 +1071,8 @@ def register_shop_management(dp: Dispatcher) -> None:
                                        lambda c: c.data == 'show_logs')
     dp.register_callback_query_handler(goods_management_callback_handler,
                                        lambda c: c.data == 'goods_management')
+    dp.register_callback_query_handler(promo_management_callback_handler,
+                                       lambda c: c.data == 'promo_management')
     dp.register_callback_query_handler(categories_callback_handler,
                                        lambda c: c.data == 'categories_management')
     dp.register_callback_query_handler(add_category_callback_handler,
@@ -985,6 +1095,10 @@ def register_shop_management(dp: Dispatcher) -> None:
                                        lambda c: c.data == 'delete_category')
     dp.register_callback_query_handler(update_category_callback_handler,
                                        lambda c: c.data == 'update_category')
+    dp.register_callback_query_handler(create_promo_callback_handler,
+                                       lambda c: c.data == 'create_promo')
+    dp.register_callback_query_handler(delete_promo_callback_handler,
+                                       lambda c: c.data == 'delete_promo')
 
     dp.register_message_handler(check_item_name_for_amount_upd,
                                 lambda c: TgConfig.STATE.get(c.from_user.id) == 'update_amount_of_item')
@@ -1025,6 +1139,14 @@ def register_shop_management(dp: Dispatcher) -> None:
                                 lambda c: TgConfig.STATE.get(c.from_user.id) == 'update_category_name')
     dp.register_message_handler(update_item_infinity,
                                 lambda c: TgConfig.STATE.get(c.from_user.id) == 'apply_change')
+    dp.register_message_handler(promo_code_receive_code,
+                                lambda c: TgConfig.STATE.get(c.from_user.id) == 'promo_create_code')
+    dp.register_message_handler(promo_code_receive_discount,
+                                lambda c: TgConfig.STATE.get(c.from_user.id) == 'promo_create_discount')
+    dp.register_message_handler(promo_code_receive_expiry,
+                                lambda c: TgConfig.STATE.get(c.from_user.id) == 'promo_create_expiry')
+    dp.register_message_handler(promo_code_delete_process,
+                                lambda c: TgConfig.STATE.get(c.from_user.id) == 'promo_delete')
 
     dp.register_callback_query_handler(update_item_process,
                                        lambda c: c.data.startswith('change_'))

@@ -1,6 +1,6 @@
 import os
 from bot.utils.files import sanitize_name
-from bot.database.models import Database, Goods, ItemValues, Categories, UnfinishedOperations
+from bot.database.models import Database, Goods, ItemValues, Categories, UnfinishedOperations, PromoCode
 
 
 def delete_item(item_name: str) -> None:
@@ -61,3 +61,9 @@ def buy_item(item_id: str, infinity: bool = False) -> None:
         session.query(ItemValues).filter(ItemValues.id == item_id).delete()
         session.commit()
     # Nothing to do for infinite items
+
+
+def delete_promocode(code: str) -> None:
+    session = Database().session
+    session.query(PromoCode).filter(PromoCode.code == code).delete()
+    session.commit()

@@ -232,6 +232,8 @@ def promo_codes_management() -> InlineKeyboardMarkup:
     inline_keyboard = [
         [InlineKeyboardButton('➕ Create promo code', callback_data='create_promo')],
         [InlineKeyboardButton('🗑️ Delete promo code', callback_data='delete_promo')],
+        [InlineKeyboardButton('🛠 Manage promo code', callback_data='manage_promo')],
+
         [InlineKeyboardButton('🔙 Go back', callback_data='shop_management')],
     ]
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)

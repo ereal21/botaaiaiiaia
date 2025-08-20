@@ -4,7 +4,7 @@ import sqlalchemy
 from sqlalchemy import exc, func
 
 from bot.database.models import Database, User, ItemValues, Goods, Categories, Role, BoughtGoods, \
-    Operations, UnfinishedOperations
+    Operations, UnfinishedOperations, PromoCode
 
 
 def check_user(telegram_id: int) -> User | None:
@@ -301,3 +301,14 @@ def check_user_referrals(user_id: int) -> list[int]:
 def get_user_referral(user_id: int) -> int | None:
     result = Database().session.query(User.referral_id).filter(User.telegram_id == user_id).first()
     return result[0] if result else None
+
+
+def get_promocode(code: str) -> dict | None:
+    result = (Database().session.query(PromoCode)
+              .filter(PromoCode.code == code, PromoCode.active.is_(True))
+              .first())
+    return result.__dict__ if result else None
+
+
+def get_all_promocodes() -> list[PromoCode]:
+    return Database().session.query(PromoCode).filter(PromoCode.active.is_(True)).all()
